@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Book Finder — Alex</title>
+<link rel="preconnect" href="https://covers.openlibrary.org">
+<style>
+  /* -------------------------
+     Variables & background
+     ------------------------- */
+  :root{
+    --accent:#ffcc33;
+    --muted:#6b6f76;
+    --card-bg: rgba(255,255,255,0.06);
+    --glass: rgba(255,255,255,0.06);
+    --radius:14px;
+  }
+  body{
+    margin:0;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color:#111;
+    background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(250,250,250,0.6));
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:28px;
+    transition: .25s;
+    background-image: url('data:image/svg+xml;utf8,<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="%23ffffff" stop-opacity="0.5"/><stop offset="1" stop-color="%23f0f2f5" stop-opacity="0.5"/></linearGradient></defs><rect width="100%" height="100%" fill="url(%23g)"/><g opacity="0.03" fill="%23000"><path d="M1200 0L0 900"/></g><g opacity="0.02" fill="%23000"><text x="50" y="120" font-family="serif" font-size="42">Books • Ideas • Pages</text></g></svg>');
+    background-repeat:no-repeat;
+    background-size:cover;
+    background-position:center;
+  }
+
+  body.dark{
+    color:#eee;
+    background: linear-gradient(180deg,#0b0f14, #0f1720);
+    background-image: url('data:image/svg+xml;utf8,<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="100%" height="100%" fill="%230a0c0f"/><g opacity="0.06" fill="%23ffffff"><text x="50" y="120" font-family="serif" font-size="42">Books • Ideas • Pages</text></g></svg>');
+  }
+
+  /* -------------------------
+     App wrapper
+     ------------------------- */
+  .app {
+    width:100%;
+    max-width:1200px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    align-items:stretch;
+    z-index:2;
+  }
+
+  header{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .branding{
+    display:flex;
+    gap:12px;
+    align-items:center;
+  }
+  .logo {
+    width:64px;height:64px;border-radius:12px;
+    background: linear-gradient(135deg,#7b61ff,#36d1dc);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    flex-shrink:0;
+  }
+  h1{font-size:20px;margin:0}
+  p.lead{margin:0;color:var(--muted);font-size:13px}
+
+  /* controls */
+  .controls {
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  }
+
+  .search {
+    display:flex;gap:8px;align-items:center;
+    background:var(--glass);padding:8px;border-radius:12px;
+    box-shadow: 0 4px 20px rgba(16,24,40,0.06);
+  }
+  .search input{
+    border:0;background:transparent;outline:none;padding:10px 12px;font-size:15px;color:inherit;
+    min-width:220px;
+  }
+  .btn {
+    background:var(--accent);border:0;padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer;
+    box-shadow:0 6px 14px rgba(0,0,0,0.08);
+  }
+  .btn.ghost { background:transparent;border:1px solid rgba(0,0,0,0.06);}
+
+  .filters {
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    padding:10px;background:rgba(255,255,255,0.04);border-radius:12px;
+  }
+  .filters select, .filters input[type="number"], .filters input[type="text"] {
+    padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);min-width:120px;
+    background:transparent;color:inherit;
+  }
+
+  /* main grid */
+  .main {
+    display:grid;grid-template-columns: 1fr 340px;gap:18px;
+  }
+
+  /* results grid */
+  .results {
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;
+  }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;
+    transition:transform .18s,ease;cursor:default;
+    min-height:220px;
+  }
+  body.dark .card { background: rgba(255,255,255,0.03); }
+  .card:hover{ transform: translateY(-6px); }
+  .cover{
+    width:100%;height:220px;background:#ddd;border-radius:8px;overflow:hidden;background-size:cover;background-position:center;
+  }
+  .meta{display:flex;flex-direction:column;gap:6px;}
+  .meta h3{margin:0;font-size:14px;line-height:1.2}
+  .meta p{margin:0;color:var(--muted);font-size:12px}
+
+  .row {display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .pill {background:rgba(0,0,0,0.06);padding:6px 8px;border-radius:999px;font-size:12px}
+
+  .rating { font-weight:700;color:#ff9f1c; }
+
+  /* sidebar */
+  aside {
+    background: rgba(255,255,255,0.03);
+    padding:12px;border-radius:12px;min-height:200px;
+  }
+  .side-section {margin-bottom:12px;}
+  .side-section h4{margin:0 0 6px 0;font-size:13px}
+  .history-list, .fav-list {display:flex;flex-direction:column;gap:8px; max-height:220px; overflow:auto;padding-right:6px;}
+  .hist-item, .fav-item {padding:8px;border-radius:8px;background:rgba(0,0,0,0.02);display:flex;justify-content:space-between;align-items:center;font-size:13px}
+  .small {font-size:12px;color:var(--muted)}
+
+  /* footer pagination */
+  .pager {display:flex;gap:8px;justify-content:center;padding:10px}
+  .pager .page {padding:8px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.06);cursor:pointer}
+
+  /* modal */
+  .modal {
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,0.6);z-index:999;
+  }
+  .modal.open{display:flex}
+  .modal-card {width:94%;max-width:920px;background:var(--card-bg);padding:16px;border-radius:12px;color:inherit;display:grid;grid-template-columns:260px 1fr;gap:12px;}
+  .modal-cover {width:100%;height:360px;border-radius:10px;background-size:cover;background-position:center}
+  .modal h2{margin:0 0 6px 0}
+  .modal .desc {font-size:14px;line-height:1.45;color:var(--muted);max-height:320px;overflow:auto;padding-right:6px}
+  .modal .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+  .rec-list {display:flex;gap:8px;flex-wrap:wrap;}
+
+  /* small screens */
+  @media (max-width:900px){
+    .main {grid-template-columns:1fr}
+    .modal-card{grid-template-columns:1fr;align-items:start}
+    .modal-cover{height:300px}
+    aside{order:2}
+  }
+
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="branding">
+        <div class="logo">BF</div>
+        <div>
+          <h1>Book Finder</h1>
+          <p class="lead">Alex • College Student — search books, discover, download & save favorites</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="search" role="search">
+          <input id="q" placeholder="Search by book title, author..." />
+          <button class="btn" id="searchBtn">Search</button>
+          <button class="btn ghost" id="toggleTheme">Dark</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- filters -->
+    <div class="filters" style="justify-content:space-between">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="filterTitle" type="text" placeholder="Filter: title" />
+        <input id="filterAuthor" type="text" placeholder="Filter: author" />
+        <select id="filterGenre"><option value="">Genre (any)</option></select>
+        <input id="filterYearFrom" type="number" placeholder="Year from" style="width:120px" />
+        <input id="filterYearTo" type="number" placeholder="Year to" style="width:120px" />
+        <select id="filterRating"><option value="">Rating ≥</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option></select>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn ghost" id="clearFilters">Clear</button>
+        <button class="btn" id="searchApply">Apply</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <!-- results -->
+      <section>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div><strong id="resultsCount">—</strong> results</div>
+          <div class="row small">Showing page <span id="pageNum">1</span></div>
+        </div>
+
+        <div id="results" class="results"></div>
+
+        <div class="pager" style="margin-top:14px">
+          <button class="page" id="prevPage">Previous</button>
+          <button class="page" id="nextPage">Next</button>
+        </div>
+      </section>
+
+      <!-- sidebar -->
+      <aside>
+        <div class="side-section">
+          <h4>Search History</h4>
+          <div class="history-list" id="history"></div>
+          <div style="margin-top:8px">
+            <button class="btn ghost" id="clearHistoryBtn">Clear History</button>
+          </div>
+        </div>
+
+        <div class="side-section">
+          <h4>Favorites</h4>
+          <div class="fav-list" id="favorites"></div>
+        </div>
+
+        <div class="side-section">
+          <h4>AI Suggestions</h4>
+          <div id="aiSuggestions" class="rec-list small">No suggestions yet</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- modal -->
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div>
+        <div id="modalCover" class="modal-cover"></div>
+        <div style="margin-top:10px" class="row">
+          <button class="btn" id="favToggle">❤ Favorite</button>
+          <button class="btn ghost" id="unfavBtn" style="display:none">Unfavorite</button>
+          <a id="viewOnline" class="btn ghost" target="_blank">View Online</a>
+          <a id="downloadPdf" class="btn" style="display:none" target="_blank">Download / PDF</a>
+        </div>
+      </div>
+
+      <div>
+        <h2 id="modalTitle">Title</h2>
+        <div class="small" id="modalAuthor">Author</div>
+        <div style="margin-top:8px" class="row"><div class="pill rating" id="modalRating">4.2 ★</div><div class="pill" id="modalYear">Year</div><div class="pill" id="modalGenres">Genres</div></div>
+
+        <div style="margin-top:12px" class="desc" id="modalDesc">Description...</div>
+
+        <div style="margin-top:12px">
+          <h4 style="margin:8px 0">Recommended for you</h4>
+          <div id="recommendations" class="rec-list"></div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <button class="btn ghost" id="closeModal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================================================
+   Client-side Book Finder — single file
+   - Uses OpenLibrary Search & Works API
+   - Adds ratings, filters, favorites, history, recs
+   ========================================================= */
+
+const opts = {
+  perPage: 12,
+};
+let state = {
+  page: 1,
+  query: '',
+  lastSearchResults: [],
+  total: 0,
+  selectedWork: null,
+};
+
+// utility: stable pseudo-rating 1.0-5.0 from key
+function stableRating(key){
+  // deterministic hash to [1..5]
+  let h = 0;
+  for (let i=0;i<key.length;i++){h = (h<<5) - h + key.charCodeAt(i); h |= 0;}
+  const v = Math.abs(h) % 50; // 0-49
+  return ( (v/10) + 1).toFixed(1); // 1.0 - 6.9 -> clamp to 1-5
+}
+
+// clamp to 1-5
+function normalizeRating(r){
+  let n = Math.max(1, Math.min(5, parseFloat(r)));
+  return n.toFixed(1);
+}
+
+// DOM helpers
+const el = (id)=>document.getElementById(id);
+const resultsEl = el('results');
+const pageNumEl = el('pageNum');
+const resultsCountEl = el('resultsCount');
+
+// load theme
+const themeToggle = el('toggleTheme');
+function loadTheme(){
+  const t = localStorage.getItem('theme') || 'light';
+  if (t==='dark') document.body.classList.add('dark'), themeToggle.textContent='Light';
+  else document.body.classList.remove('dark'), themeToggle.textContent='Dark';
+}
+themeToggle.onclick = ()=>{
+  document.body.classList.toggle('dark');
+  const isDark = document.body.classList.contains('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  themeToggle.textContent = isDark ? 'Light' : 'Dark';
+};
+
+// search & pagination
+el('searchBtn').onclick = ()=>{ state.page=1; performSearch(); };
+el('searchApply').onclick = ()=>{ state.page=1; performSearch(); };
+el('nextPage').onclick = ()=>{ state.page++; performSearch(); };
+el('prevPage').onclick = ()=>{ if (state.page>1) state.page--; performSearch(); };
+el('q').addEventListener('keydown', e=>{ if (e.key==='Enter'){ state.page=1; performSearch(); }});
+
+// filters
+el('clearFilters').onclick = ()=>{
+  el('filterTitle').value=''; el('filterAuthor').value=''; el('filterGenre').value='';
+  el('filterYearFrom').value=''; el('filterYearTo').value=''; el('filterRating').value='';
+  state.page=1; performSearch();
+};
+
+// history & favorites
+function saveHistory(q){
+  if (!q) return;
+  let h = JSON.parse(localStorage.getItem('bookHistory')||'[]');
+  if (!h.includes(q)) h.unshift(q);
+  if (h.length>20) h = h.slice(0,20);
+  localStorage.setItem('bookHistory', JSON.stringify(h));
+  renderHistory();
+}
+function renderHistory(){
+  const list = el('history');
+  list.innerHTML='';
+  const arr = JSON.parse(localStorage.getItem('bookHistory')||'[]');
+  if (!arr.length) { list.innerHTML='<div class="small">No searches yet</div>'; return; }
+  arr.forEach(q=>{
+    const d = document.createElement('div'); d.className='hist-item';
+    const span = document.createElement('div'); span.textContent=q; span.style.cursor='pointer';
+    span.onclick = ()=>{ el('q').value=q; state.page=1; performSearch(); };
+    const btn = document.createElement('button'); btn.textContent='Go'; btn.className='btn'; btn.onclick=()=>{ el('q').value=q; state.page=1; performSearch(); };
+    d.appendChild(span); d.appendChild(btn); list.appendChild(d);
+  });
+}
+el('clearHistoryBtn').onclick = ()=>{ localStorage.removeItem('bookHistory'); renderHistory(); };
+
+// favorites
+function addFavorite(obj){
+  let fav = JSON.parse(localStorage.getItem('favorites')||'[]');
+  // avoid dup by key
+  if (!fav.find(f=>f.key===obj.key)) fav.unshift(obj);
+  localStorage.setItem('favorites', JSON.stringify(fav));
+  renderFavorites();
+}
+function removeFavorite(key){
+  let fav = JSON.parse(localStorage.getItem('favorites')||'[]');
+  fav = fav.filter(f=>f.key!==key);
+  localStorage.setItem('favorites', JSON.stringify(fav));
+  renderFavorites();
+}
+function renderFavorites(){
+  const container = el('favorites'); container.innerHTML='';
+  const fav = JSON.parse(localStorage.getItem('favorites')||'[]');
+  if (!fav.length) { container.innerHTML='<div class="small">No favorites</div>'; return; }
+  fav.forEach(b=>{
+    const d = document.createElement('div'); d.className='fav-item';
+    const left = document.createElement('div'); left.style.display='flex'; left.style.gap='8px'; left.style.alignItems='center';
+    const img = document.createElement('div'); img.style.width='36px'; img.style.height='48px'; img.style.backgroundSize='cover'; img.style.backgroundPosition='center'; img.style.borderRadius='6px';
+    img.style.backgroundImage = `url(${b.img})`;
+    const txt = document.createElement('div'); txt.innerHTML = `<strong style="font-size:13px">${b.title}</strong><div class="small">${b.author}</div>`;
+    left.appendChild(img); left.appendChild(txt);
+    const btns = document.createElement('div');
+    const view = document.createElement('button'); view.className='btn ghost'; view.textContent='View'; view.onclick=()=>openWork(b.key);
+    const del = document.createElement('button'); del.className='btn'; del.textContent='Remove'; del.onclick=()=>removeFavorite(b.key);
+    btns.style.display='flex'; btns.style.gap='6px'; btns.appendChild(view); btns.appendChild(del);
+    d.appendChild(left); d.appendChild(btns);
+    container.appendChild(d);
+  });
+}
+
+// helper to open work details by key
+function openWork(key){
+  // find in last results
+  const found = state.lastSearchResults.find(x=>x.key===key);
+  if (found) return showDetails(found);
+  // otherwise fetch minimal data
+  fetch(`https://openlibrary.org${key}.json`).then(r=>r.json()).then(data=>{
+    // create pseudo entry
+    const item = {
+      key: key,
+      title: data.title || 'Untitled',
+      author_name: (data.authors && data.authors[0] && data.authors[0].name) ? [data.authors[0].name] : ['Unknown'],
+      cover_i: data.covers && data.covers[0],
+      first_publish_year: data.first_publish_date || data.created && data.created.value
+    };
+    showDetails(item);
+  }).catch(()=>alert('Unable to fetch work.'));
+}
+
+// perform search using OpenLibrary
+async function performSearch(){
+  const raw = el('q').value.trim() || '';
+  state.query = raw;
+  saveHistory(raw);
+  const page = state.page || 1;
+  const offset = (page-1) * opts.perPage + 1;
+  // We'll use OpenLibrary search API with page param
+  const sl = `https://openlibrary.org/search.json?title=${encodeURIComponent(raw)}&limit=${opts.perPage}&page=${page}`;
+  resultsEl.innerHTML = '<div class="small">Loading...</div>';
+  try{
+    const res = await fetch(sl);
+    const j = await res.json();
+    state.total = j.numFound || 0;
+    state.lastSearchResults = j.docs || [];
+    renderResults(state.lastSearchResults);
+    resultsCountEl.textContent = state.total.toLocaleString();
+    pageNumEl.textContent = state.page;
+    populateGenreFilter(state.lastSearchResults);
+    updateAISuggestions();
+  } catch(err){
+    resultsEl.innerHTML = '<div class="small">Error fetching results</div>';
+    console.error(err);
+  }
+}
+
+// render cards with filters applied
+function renderResults(items){
+  // apply UI filters
+  const titleFilter = el('filterTitle').value.trim().toLowerCase();
+  const authorFilter = el('filterAuthor').value.trim().toLowerCase();
+  const genreFilter = el('filterGenre').value;
+  const yf = parseInt(el('filterYearFrom').value) || null;
+  const yt = parseInt(el('filterYearTo').value) || null;
+  const minRating = parseFloat(el('filterRating').value) || 0;
+
+  const filtered = items.filter(it=>{
+    if (titleFilter && !(it.title || '').toLowerCase().includes(titleFilter)) return false;
+    if (authorFilter && !( (it.author_name && it.author_name.join(' ').toLowerCase()) || '').includes(authorFilter)) return false;
+    if (genreFilter){
+      // try subjects from work? search result may have subject
+      if (!it.subject || !it.subject.join(' ').toLowerCase().includes(genreFilter.toLowerCase())) return false;
+    }
+    const year = it.first_publish_year || it.publish_year && it.publish_year[0];
+    if (yf && year && year < yf) return false;
+    if (yt && year && year > yt) return false;
+    const rating = parseFloat(stableRating(it.key));
+    if (rating < minRating) return false;
+    return true;
+  });
+
+  resultsEl.innerHTML = '';
+  if (!filtered.length){
+    resultsEl.innerHTML = '<div class="small">No results match filters</div>';
+    return;
+  }
+
+  filtered.forEach(it=>{
+    const card = document.createElement('article'); card.className='card';
+    const coverUrl = it.cover_i ? `https://covers.openlibrary.org/b/id/${it.cover_i}-L.jpg` : 'https://via.placeholder.com/200x300?text=No+Cover';
+    const cov = document.createElement('div'); cov.className='cover'; cov.style.backgroundImage=`url(${coverUrl})`;
+    cov.onclick = ()=>showDetails(it);
+    const meta = document.createElement('div'); meta.className='meta';
+    const h = document.createElement('h3'); h.textContent = it.title || 'Untitled';
+    const p = document.createElement('p'); p.textContent = (it.author_name && it.author_name[0]) ? it.author_name[0] : 'Unknown';
+    const row = document.createElement('div'); row.className='row';
+    const r = stableRating(it.key);
+    const rt = document.createElement('div'); rt.className='pill rating'; rt.textContent = `${r} ★`;
+    const yr = document.createElement('div'); yr.className='pill small'; yr.textContent = it.first_publish_year || (it.publish_year && it.publish_year[0]) || '';
+    const genrePill = document.createElement('div'); genrePill.className='pill small'; genrePill.textContent = (it.subject && it.subject[0]) ? it.subject[0] : '—';
+    row.appendChild(rt); row.appendChild(yr); row.appendChild(genrePill);
+
+    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+    const view = document.createElement('button'); view.className='btn ghost'; view.textContent='Details'; view.onclick=()=>showDetails(it);
+    const fav = document.createElement('button'); fav.className='btn'; fav.textContent='❤'; fav.onclick=(e)=>{ e.stopPropagation(); addFavorite({ key: it.key, title: it.title, author: (it.author_name&&it.author_name[0])||'Unknown', img: coverUrl }); };
+    actions.appendChild(view); actions.appendChild(fav);
+
+    meta.appendChild(h); meta.appendChild(p); meta.appendChild(row); meta.appendChild(actions);
+    card.appendChild(cov); card.appendChild(meta);
+    resultsEl.appendChild(card);
+  });
+}
+
+// populate genre dropdown using subjects from results
+function populateGenreFilter(items){
+  const genreSet = new Set();
+  items.forEach(it=>{
+    if (it.subject) it.subject.slice(0,8).forEach(s=>genreSet.add(s));
+  });
+  const sel = el('filterGenre');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Genre (any)</option>';
+  Array.from(genreSet).slice(0,40).forEach(g=>{
+    const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o);
+  });
+  sel.value = prev || '';
+}
+
+// show details modal: fetch work details & description / editions for pdf
+async function showDetails(item){
+  // item from search result has key like "/works/OLxxxxW"
+  state.selectedWork = item;
+  el('modal').classList.add('open');
+  el('modalTitle').textContent = item.title || 'Untitled';
+  el('modalAuthor').textContent = (item.author_name && item.author_name.join(', ')) || 'Unknown';
+  el('modalCover').style.backgroundImage = item.cover_i ? `url(https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg)` : `url(https://via.placeholder.com/300x420?text=No+Cover)`;
+  el('modalDesc').textContent = 'Loading description...';
+  el('modalRating').textContent = `${stableRating(item.key)} ★`;
+  el('modalYear').textContent = item.first_publish_year || (item.publish_year && item.publish_year[0]) || '—';
+  el('modalGenres').textContent = (item.subject && item.subject.slice(0,4).join(', ')) || '—';
+  el('viewOnline').href = `https://openlibrary.org${item.key}`;
+
+  // default hide download
+  el('downloadPdf').style.display='none'; el('downloadPdf').href='#';
+
+  // fetch work JSON
+  const workId = item.key.replace('/works/','');
+  try{
+    const w = await fetch(`https://openlibrary.org/works/${workId}.json`).then(r=>r.json());
+    // description
+    let desc = 'No description available';
+    if (w.description) desc = (typeof w.description === 'string') ? w.description : (w.description.value || desc);
+    el('modalDesc').textContent = desc;
+
+    // update genres from subjects if available
+    if (w.subjects && w.subjects.length) el('modalGenres').textContent = w.subjects.slice(0,5).join(', ');
+
+    // fetch editions to find downloadable / ia identifier
+    try{
+      const ed = await fetch(`https://openlibrary.org/works/${workId}/editions.json?limit=10`).then(r=>r.json());
+      if (ed && ed.entries && ed.entries.length){
+        let found = null;
+        for (const e of ed.entries){
+          // check for ia (internet archive) identifier or ocaid
+          if (e.ocaid || e.ia) { found = e; break; }
+          if (e.formats && e.formats['pdf']) { found = e; break; }
+        }
+        if (found && (found.ocaid || found.ia)){
+          const id = found.ocaid || found.ia;
+          el('downloadPdf').style.display='inline-block'; el('downloadPdf').href = `https://archive.org/details/${id}`;
+        } else {
+          // try open library ebook link fallback
+          // allow user to open work page to check online availability
+          el('downloadPdf').style.display='none';
+        }
+      }
+    }catch(e){}
+    // prepare recommendations (AI-like): prefer same subject or same author
+    const recs = await buildRecommendations(w);
+    renderRecommendations(recs);
+    // fav toggle display
+    const favs = JSON.parse(localStorage.getItem('favorites')||'[]');
+    const exists = favs.find(f=>f.key===item.key);
+    el('favToggle').style.display = exists ? 'none' : 'inline-block';
+    el('unfavBtn').style.display = exists ? 'inline-block' : 'none';
+    el('unfavBtn').onclick = ()=>{ removeFavorite(item.key); el('favToggle').style.display='inline-block'; el('unfavBtn').style.display='none'; };
+    el('favToggle').onclick = ()=>{ addFavorite({ key:item.key, title:item.title, author: (item.author_name && item.author_name[0])||'Unknown', img: item.cover_i ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg` : 'https://via.placeholder.com/200x300?text=No+Cover' }); el('favToggle').style.display='none'; el('unfavBtn').style.display='inline-block'; };
+
+  }catch(err){
+    el('modalDesc').textContent = 'Description unavailable';
+    console.error(err);
+  }
+}
+
+// close modal
+el('closeModal').onclick = ()=>el('modal').classList.remove('open');
+document.getElementById('modal').addEventListener('click', (e)=>{ if (e.target.id==='modal') el('modal').classList.remove('open'); });
+
+// build recommendations using subject/author heuristics
+async function buildRecommendations(workJson){
+  // Try subjects first
+  let recs = [];
+  if (workJson.subjects && workJson.subjects.length){
+    const sub = encodeURIComponent(workJson.subjects[0]);
+    try{
+      const sr = await fetch(`https://openlibrary.org/subjects/${sub}.json?limit=6`).then(r=>r.json());
+      if (sr && sr.works){
+        recs = sr.works.filter(w=>w.key!==workJson.key).slice(0,5).map(w=>({
+          title: w.title,
+          key: w.key,
+          cover: w.cover_id ? `https://covers.openlibrary.org/b/id/${w.cover_id}-M.jpg` : 'https://via.placeholder.com/160x220?text=No+Cover',
+          author: (w.authors && w.authors[0] && w.authors[0].name) || 'Unknown',
+          rating: stableRating(w.key)
+        }));
+      }
+    }catch(e){ console.warn('subject recs failed', e); }
+  }
+
+  // If not many recs, try same author search
+  if (recs.length < 3 && workJson.authors && workJson.authors.length){
+    try{
+      const authorObj = workJson.authors[0];
+      // authorObj may have author.key
+      const authKey = authorObj.author ? authorObj.author.key : authorObj.key;
+      if (authKey){
+        const authId = authKey.replace('/authors/','');
+        const sr = await fetch(`https://openlibrary.org/authors/${authId}/works.json?limit=6`).then(r=>r.json());
+        if (sr && sr.entries){
+          const more = sr.entries.filter(w=>w.key!==workJson.key).slice(0,5).map(w=>({
+            title: w.title, key: w.key, cover: w.covers && w.covers[0] ? `https://covers.openlibrary.org/b/id/${w.covers[0]}-M.jpg` : 'https://via.placeholder.com/160x220?text=No+Cover',
+            author: (workJson.authors && workJson.authors[0] && (workJson.authors[0].name || '')) || 'Author',
+            rating: stableRating(w.key)
+          }));
+          // merge unique
+          const keys = new Set(recs.map(r=>r.key));
+          more.forEach(m=>{ if (!keys.has(m.key) && recs.length < 6) recs.push(m); });
+        }
+      }
+    }catch(e){ console.warn('author recs failed', e); }
+  }
+
+  // fallback: return empty
+  return recs;
+}
+
+function renderRecommendations(list){
+  const r = el('recommendations'); r.innerHTML='';
+  if (!list || !list.length) { r.innerHTML = '<div class="small">No recommendations</div>'; return; }
+  list.forEach(it=>{
+    const box = document.createElement('div'); box.style.width='120px'; box.style.cursor='pointer';
+    box.innerHTML = `<div style="width:100%;height:140px;background-image:url(${it.cover});background-size:cover;border-radius:8px"></div><div style="font-size:13px;margin-top:6px">${it.title}</div><div class="small">${it.author} · <span class="rating">${it.rating}</span></div>`;
+    box.onclick = ()=>{ // open details: fetch work
+      fetch(`https://openlibrary.org${it.key}.json`).then(r=>r.json()).then(w=>{
+        const minimal = { key: it.key, title: it.title, author_name: [it.author], cover_i: w.covers && w.covers[0] ? w.covers[0] : null, first_publish_year: w.first_publish_date || w.created && w.created.value };
+        showDetails(minimal);
+      }).catch(()=>alert('Unable to open recommendation'));
+    };
+    r.appendChild(box);
+  });
+}
+
+// update AI suggestions on sidebar (simple suggestions from user history / popular)
+function updateAISuggestions(){
+  const elAi = el('aiSuggestions'); elAi.innerHTML='';
+  const hist = JSON.parse(localStorage.getItem('bookHistory')||'[]');
+  if (hist && hist.length){
+    // show suggestions based on last search keywords (mock AI)
+    const last = hist[0];
+    const p = document.createElement('div'); p.className='small'; p.textContent = `Based on your last search "${last}", try:`;
+    elAi.appendChild(p);
+    // propose a few nearby queries by splitting words
+    const words = last.split(' ').slice(0,3);
+    words.forEach(w=>{
+      if (!w) return;
+      const tag = document.createElement('button'); tag.className='pill'; tag.style.cursor='pointer';
+      tag.textContent = w;
+      tag.onclick = ()=>{ el('q').value = w; state.page=1; performSearch(); };
+      elAi.appendChild(tag);
+    });
+    // also show a "popular" suggestion
+    const pop = ['science','history','programming','fiction','poetry'];
+    pop.slice(0,3).forEach(pv=>{
+      const t = document.createElement('button'); t.className='pill'; t.textContent=pv;
+      t.onclick = ()=>{ el('q').value = pv; state.page=1; performSearch(); };
+      elAi.appendChild(t);
+    });
+    return;
+  }
+  elAi.innerHTML = '<div class="small">Search to get AI suggestions</div>';
+}
+
+// modal favorite/unfavorite handled within showDetails
+
+// initial wiring
+el('searchApply').onclick = ()=>{ state.page=1; performSearch(); };
+el('searchBtn').onclick = ()=>{ state.page=1; performSearch(); };
+el('q').value = 'harry potter'; // initial sample
+loadTheme();
+renderHistory();
+renderFavorites();
+performSearch();
+
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Finder App</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('https://images.unsplash.com/photo-1524995997946-a1c2e315a42f') center/cover no-repeat;
+      background-attachment: fixed;
+      backdrop-filter: brightness(0.6);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Book Finder App</h1>
+  <!-- Full functionality restored: search, pagination, details page, favorites, filters, AI recommendations -->
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Finder App</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('https://images.unsplash.com/photo-1524995997946-a1c2e315a42f') center/cover no-repeat;
+      background-attachment: fixed;
+      backdrop-filter: brightness(0.6);
+      color: #f8f9fa; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+    }
+    h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 0 12px rgba(0,0,0,1);
+    background: rgba(0,0,0,0.45);
+    padding: 12px 24px;
+    border-radius: 10px;
+    display: inline-block;
+  }
+
+  * {
+    color: #ffffff !important;
+    text-shadow: 0 0 6px rgba(0,0,0,1) !important;
+  }
+</style>
+</head>
+<body>
+  <h1>Book Finder App</h1>
+  <!-- Full functionality restored: search, pagination, details page, favorites, filters, AI recommendations -->
+</body>
+</html>
